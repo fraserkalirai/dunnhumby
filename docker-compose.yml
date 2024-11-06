@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # SQL Server
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sql_server
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=DunnhumbyPassword!
+      - MSSQL_PID=Express
+    ports:
+      - "1433:1433"
+    networks:
+      - app-network
+    volumes:
+      - sql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD", "sqlcmd", "-U", "sa", "-P", "DunnhumbyPassword!", "-Q", "SELECT 1"]
+      interval: 30s
+      retries: 10
+      start_period: 60s
+      timeout: 10s
+
+  # ASP.NET API
+  api:
+    build:
+      context: .
+      dockerfile: ProductManagementApi/Dockerfile
+    container_name: product_api
+    ports:
+      - "5102:5102"
+    environment:
+      - ASPNETCORE_URLS=http://+:5102
+      - ConnectionStrings__DefaultConnection=Server=db;Database=ProductManagementDb;User Id=sa;Password=DunnhumbyPassword!;Encrypt=False;Integrated Security=False;
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+  # React App
+  frontend:
+    build:
+      context: ./productmanagementdashboard
+      dockerfile: Dockerfile
+    container_name: dashboard
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  sql_data:
+    driver: local
